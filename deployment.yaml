@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azzis-express-app
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: azzis-express-app
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: azzis-express-app
+    spec:
+      containers:
+      - image: azzis/azzis-express-app:latest
+        imagePullPolicy: IfNotPresent
+        name: azzis-express-app
+        ports:
+        - containerPort: 5000

@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: azzis-express-app-ingress
+  namespace: default
+  annotations:
+    ############# Ini kalau ingin menggunakan SSL/TLS dari Let's Encrypt #############
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    ##################################################################################
+spec:
+  ingressClassName: nginx
+  ############# Ini kalau ingin menggunakan SSL/TLS dari Let's Encrypt #############
+  tls:
+  - hosts:
+    - percobaan.com
+    secretName: azzis-express-app-ingress-tls
+  ##################################################################################
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: azzis-express-app-service
+            port:
+              number: 5000
+    #################### Ini kalau ingin menggunakan domain name ###################
+    host: percobaan.com
+    ################################################################################

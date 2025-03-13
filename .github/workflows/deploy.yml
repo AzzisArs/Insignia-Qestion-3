@@ -1,0 +1,45 @@
+name: Question 3
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Docker image
+      run: |
+        docker build --tag "${{ secrets.DOCKER_USERNAME }}/azzis-express-app:latest" .
+    
+    - name: Login to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Push Docker image
+      run: docker push "${{ secrets.DOCKER_USERNAME }}/azzis-express-app:latest"
+
+    - name: Apply deployment to Kubernetes
+      uses: actions-hub/kubectl@v1.32.2
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      with:
+        args: apply -f deployment.yaml
+
+    - name: Apply service to Kubernetes
+      uses: actions-hub/kubectl@v1.32.2
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      with:
+        args: apply -f service.yaml
+
+    - name: Apply ingress to Kubernetes
+      uses: actions-hub/kubectl@v1.32.2
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      with:
+        args: apply -f ingress.yaml
+      
+
+    
