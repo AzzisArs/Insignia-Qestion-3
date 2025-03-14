@@ -3,6 +3,7 @@ const { validationResult, body, param } = require('express-validator')
 const bcrypt = require('bcrypt')
 const uuid = require("uuid")
 const mongoose = require("mongoose")
+const jwt = require('jsonwebtoken')
 require("dotenv").config()
 
 const app = express()
@@ -90,59 +91,155 @@ app.post('/users', body(['name', 'password']).isString(), body('email').isEmail(
 })
 
 app.get('/users', (req, res) => {
-    UsersModel.find({}).then(
-        users => {
-            const new_users = users.map(user => {
-                const m_user = {...(user.toJSON())}
-                delete m_user.password
-                delete m_user._id
-                delete m_user.__v
-                return m_user
-            })
+    const auth = req.headers.authorization
+    if (auth === undefined) {
+        res.status(401).json({errors:{
+            "type": "field",
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
+        return
+    }
 
-            res.json({
-                data: new_users,
-                count: new_users.length,
-                status: 200
-            })
-        },
-        err => res.status(500).json({
-            message: err,
-            status: 500
-        }),
-    )
+    if (auth.split(" ").length !== 2) {
+        res.status(401).json({errors:{
+            "type": "field",
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
+        return
+    }
+
+    const token = auth.split(" ")[1]
+
+    try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET_KEY)
+        if (payload === null) {
+            res.status(401).json({errors:{
+                "type": "field",
+                "value": auth,
+                "msg": "Failed to authenticate",
+                "path": "Authorization",
+                "location": "headers"
+            }, message: "Failed to authenticate", status: 401})
+            return
+        }
+
+        UsersModel.find({}).then(
+            users => {
+                const new_users = users.map(user => {
+                    const m_user = {...(user.toJSON())}
+                    delete m_user.password
+                    delete m_user._id
+                    delete m_user.__v
+                    return m_user
+                })
+
+                res.json({
+                    data: new_users,
+                    count: new_users.length,
+                    status: 200
+                })
+            },
+            err => res.status(500).json({
+                message: err,
+                status: 500
+            }),
+        )
+    } catch (err) {
+        res.status(401).json({errors:{
+            "type": "field",
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
+        return
+    }
 })
 
 app.get('/users/:id', param('id').isUUID(), async (req, res) => {
-    const result = validationResult(req)
-    if (!result.isEmpty()) {
-        res.status(400).json({errors: result.array(), message: 'Validation failed', status: 400})
-        return
-    }
-
-    const id = req.params.id
-
-    const user = await UsersModel.findOne({id: id})
-    if (user === null) {
-        res.status(404).json({errors: {
+    const auth = req.headers.authorization
+    if (auth === undefined) {
+        res.status(401).json({errors:{
             "type": "field",
-            "value": id,
-            "msg": "User not found",
-            "path": "id",
-            "location": "params"
-        }, message: 'User not found', status: 404})
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
         return
     }
 
-    const m_user = user.toJSON()
-    delete m_user.password
-    delete m_user._id
-    delete m_user.__v
-    
-    res.json({
-        data: m_user,
-        status: 200
-    })
+    if (auth.split(" ").length !== 2) {
+        res.status(401).json({errors:{
+            "type": "field",
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
+        return
+    }
+
+    const token = auth.split(" ")[1]
+
+    try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET_KEY)
+        if (payload === null) {
+            res.status(401).json({errors:{
+                "type": "field",
+                "value": auth,
+                "msg": "Failed to authenticate",
+                "path": "Authorization",
+                "location": "headers"
+            }, message: "Failed to authenticate", status: 401})
+            return
+        }
+
+        const result = validationResult(req)
+        if (!result.isEmpty()) {
+            res.status(400).json({errors: result.array(), message: 'Validation failed', status: 400})
+            return
+        }
+
+        const id = req.params.id
+
+        const user = await UsersModel.findOne({id: id})
+        if (user === null) {
+            res.status(404).json({errors: {
+                "type": "field",
+                "value": id,
+                "msg": "User not found",
+                "path": "id",
+                "location": "params"
+            }, message: 'User not found', status: 404})
+            return
+        }
+
+        const m_user = user.toJSON()
+        delete m_user.password
+        delete m_user._id
+        delete m_user.__v
+        
+        res.json({
+            data: m_user,
+            status: 200
+        })
+    } catch (err) {
+        res.status(401).json({errors:{
+            "type": "field",
+            "value": auth,
+            "msg": "Failed to authenticate",
+            "path": "Authorization",
+            "location": "headers"
+        }, message: "Failed to authenticate", status: 401})
+        return
+    }
 })
 
 app.put('/users/:id', param('id').isUUID(), body(['name', 'password']).isString(), body('email').isEmail(), async (req, res) => {
@@ -251,6 +348,57 @@ app.delete('/users/:id', param('id').isUUID(), async (req, res) => {
             status: 500
         }),
     )
+})
+
+app.post('/login', body(['email', 'password']).isString(), async (req, res) => {
+    const result = validationResult(req)
+    if (!result.isEmpty()) {
+        res.status(400).json({errors: result.array(), message: 'Validation failed', status: 400})
+        return
+    }
+
+    const email = req.body.email
+    const password = req.body.password
+
+    const user = await UsersModel.findOne({email: email})
+    if (user === null) {
+        res.status(404).json({errors: {
+            "type": "field",
+            "value": email,
+            "msg": "User not found",
+            "path": "email",
+            "location": "body"
+        }, message: 'User not found', status: 404})
+        return
+    }
+
+    if (!bcrypt.compareSync(password, user.password)){
+        res.status(400).json({errors: {
+            "type": "field",
+            "value": password,
+            "msg": "Wrong password",
+            "path": "password",
+            "location": "body"
+        }, message: 'Wrong password', status: 400})
+        return
+    }
+
+    const payload = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createAt: user.createAt
+    }
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET_KEY, {expiresIn: '1h'})
+    res.json({
+        message: 'Login success',
+        data: {
+            token: token,
+            user: payload
+        },
+        status: 200
+    })
 })
 
 const port = 3000
